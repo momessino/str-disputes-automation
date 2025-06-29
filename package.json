@@ -1,0 +1,35 @@
+{
+  "name": "stripe-disputes-automation",
+  "version": "1.0.0",
+  "description": "Weekly Stripe disputes report automation with risk scoring",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": [
+    "stripe",
+    "disputes",
+    "automation",
+    "csv",
+    "asana",
+    "email",
+    "cron"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "stripe": "^14.12.0",
+    "nodemailer": "^6.9.8",
+    "csv-writer": "^1.6.0",
+    "node-cron": "^3.0.3",
+    "axios": "^1.6.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
