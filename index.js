@@ -289,7 +289,7 @@ async function uploadToAsana(fileName, startDate, endDate) {
 
 async function sendEmailNotification(fileName, startDate, endDate) {
   try {
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       host: config.email.host,
       port: config.email.port,
       secure: config.email.secure,
