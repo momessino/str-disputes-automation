@@ -59,17 +59,45 @@ class RiskScorer {
     factors.push(`Reason: ${dispute.reason} (+${reasonScore})`);
 
     // 2. Amount (25 points max)
-    const amount = dispute.amount / 100; // Convert from cents
+    const currency = dispute.currency.toLowerCase();
+    let amount;
+    
+    // Handle zero-decimal currencies properly
+    const zeroDecimalCurrencies = ['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'];
+    
+    if (zeroDecimalCurrencies.includes(currency)) {
+      amount = dispute.amount; // Already in major units
+    } else {
+      amount = dispute.amount / 100; // Convert from cents
+    }
+    
     let amountScore = 0;
-    if (amount >= 1000) amountScore = 25;
-    else if (amount >= 500) amountScore = 20;
-    else if (amount >= 200) amountScore = 15;
-    else if (amount >= 100) amountScore = 10;
-    else if (amount >= 50) amountScore = 5;
+    // Adjust thresholds based on currency (rough conversion for risk assessment)
+    let threshold1000, threshold500, threshold200, threshold100, threshold50;
+    
+    if (currency === 'jpy' || currency === 'krw') {
+      // Japanese Yen / Korean Won - much higher numbers
+      threshold1000 = 100000; threshold500 = 50000; threshold200 = 20000; threshold100 = 10000; threshold50 = 5000;
+    } else if (currency === 'hkd') {
+      // Hong Kong Dollar - roughly 8:1 to USD
+      threshold1000 = 8000; threshold500 = 4000; threshold200 = 1600; threshold100 = 800; threshold50 = 400;
+    } else if (currency === 'eur' || currency === 'gbp') {
+      // Euro/Pound - roughly similar to USD
+      threshold1000 = 900; threshold500 = 450; threshold200 = 180; threshold100 = 90; threshold50 = 45;
+    } else {
+      // Default USD thresholds
+      threshold1000 = 1000; threshold500 = 500; threshold200 = 200; threshold100 = 100; threshold50 = 50;
+    }
+    
+    if (amount >= threshold1000) amountScore = 25;
+    else if (amount >= threshold500) amountScore = 20;
+    else if (amount >= threshold200) amountScore = 15;
+    else if (amount >= threshold100) amountScore = 10;
+    else if (amount >= threshold50) amountScore = 5;
     else amountScore = 2;
     
     score += amountScore;
-    factors.push(`Amount: ${dispute.currency.toUpperCase()} ${amount} (+${amountScore})`);
+    factors.push(`Amount: ${amount} ${currency.toUpperCase()} (+${amountScore})`);
 
     // 3. Customer History (20 points max)
     // Use charge creation date as proxy for customer age
@@ -199,11 +227,26 @@ async function generateCSV(disputes, fileName) {
       const charge = dispute.charge;
       const customer = charge?.customer;
       
+      // Handle currency properly - don't convert, just format correctly
+      const currency = dispute.currency.toLowerCase();
+      let displayAmount;
+      
+      // Handle zero-decimal currencies (JPY, KRW, etc.) and regular currencies
+      const zeroDecimalCurrencies = ['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'];
+      
+      if (zeroDecimalCurrencies.includes(currency)) {
+        // Zero-decimal currencies: amount is already in major units
+        displayAmount = dispute.amount.toString();
+      } else {
+        // Regular currencies: divide by 100 to convert from cents
+        displayAmount = (dispute.amount / 100).toFixed(2);
+      }
+      
       return {
         id: dispute.id,
         dispute_created_utc: new Date(dispute.created * 1000).toISOString().replace('T', ' ').slice(0, 16), // Format: 2025-06-28 15:35
-        dispute_amount: (dispute.amount / 100).toFixed(2),
-        dispute_currency: dispute.currency.toUpperCase(),
+        dispute_amount: displayAmount,
+        dispute_currency: currency,
         charge_id: charge?.id || 'N/A',
         customer_email: charge?.billing_details?.email || charge?.receipt_email || 'N/A',
         customer_id: typeof customer === 'string' ? customer : customer?.id || 'N/A',
