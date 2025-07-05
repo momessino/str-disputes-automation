@@ -385,7 +385,7 @@ cron.schedule(config.schedule, runWeeklyReport, {
 });
 
 // For testing purposes - uncomment to run immediately
-// runWeeklyReport();
+runWeeklyReport();
 
 console.log('Stripe Disputes Automation started successfully!');
 console.log('Next run will be according to schedule:', config.schedule);
