@@ -35,6 +35,13 @@ class RiskScorer {
   static calculateRiskScore(dispute) {
     let score = 0;
     const factors = [];
+    
+    // Get charge data - handle both expanded and non-expanded cases
+    const charge = dispute.charge;
+    if (!charge) {
+      console.warn('No charge data available for dispute:', dispute.id);
+      return { score: 50, factors: ['Insufficient data for risk analysis'] };
+    }
 
     // 1. Dispute Reason (30 points max)
     const reasonScores = {
@@ -62,12 +69,11 @@ class RiskScorer {
     else amountScore = 2;
     
     score += amountScore;
-    factors.push(`Amount: $${amount} (+${amountScore})`);
+    factors.push(`Amount: ${dispute.currency.toUpperCase()} ${amount} (+${amountScore})`);
 
     // 3. Customer History (20 points max)
-    // Note: This would require additional Stripe API calls to get customer history
-    // For now, we'll use charge creation date as a proxy
-    const chargeDate = new Date(dispute.charge.created * 1000);
+    // Use charge creation date as proxy for customer age
+    const chargeDate = new Date(charge.created * 1000);
     const accountAge = (Date.now() - chargeDate.getTime()) / (1000 * 60 * 60 * 24); // days
     
     let customerScore = 0;
@@ -95,18 +101,19 @@ class RiskScorer {
     factors.push(`Dispute timing: ${Math.floor(timeBetween)} days after charge (+${timingScore})`);
 
     // 5. Payment Method (10 points max)
-    const paymentMethod = dispute.charge.payment_method_details?.card?.brand || 'unknown';
-    const funding = dispute.charge.payment_method_details?.card?.funding || 'unknown';
-    const country = dispute.charge.payment_method_details?.card?.country || 'unknown';
+    const paymentMethodDetails = charge.payment_method_details;
+    const brand = paymentMethodDetails?.card?.brand || 'unknown';
+    const funding = paymentMethodDetails?.card?.funding || 'unknown';
+    const country = paymentMethodDetails?.card?.country || 'unknown';
     
     let paymentScore = 0;
     if (funding === 'prepaid') paymentScore += 5;
     if (country !== 'US' && country !== 'CA' && country !== 'GB') paymentScore += 3;
-    if (['discover', 'diners', 'jcb'].includes(paymentMethod)) paymentScore += 2;
+    if (['discover', 'diners', 'jcb'].includes(brand)) paymentScore += 2;
     
     paymentScore = Math.min(paymentScore, 10);
     score += paymentScore;
-    factors.push(`Payment: ${paymentMethod}/${funding}/${country} (+${paymentScore})`);
+    factors.push(`Payment: ${brand}/${funding}/${country} (+${paymentScore})`);
 
     return { score: Math.min(score, 100), factors };
   }
@@ -171,6 +178,7 @@ async function fetchDisputesFromStripe(startDate, endDate) {
         gte: Math.floor(startDate.getTime() / 1000),
         lte: Math.floor(endDate.getTime() / 1000),
       },
+      expand: ['data.charge', 'data.charge.customer'],
       limit: 100,
     });
 
@@ -187,17 +195,22 @@ async function generateCSV(disputes, fileName) {
     const csvData = disputes.map(dispute => {
       const riskAnalysis = RiskScorer.calculateRiskScore(dispute);
       
+      // Extract all the data that Stripe provides
+      const charge = dispute.charge;
+      const customer = charge?.customer;
+      
       return {
         id: dispute.id,
-        amount: (dispute.amount / 100).toFixed(2),
-        currency: dispute.currency.toUpperCase(),
+        dispute_created_utc: new Date(dispute.created * 1000).toISOString().replace('T', ' ').slice(0, 16), // Format: 2025-06-28 15:35
+        dispute_amount: (dispute.amount / 100).toFixed(2),
+        dispute_currency: dispute.currency.toUpperCase(),
+        charge_id: charge?.id || 'N/A',
+        customer_email: charge?.billing_details?.email || charge?.receipt_email || 'N/A',
+        customer_id: typeof customer === 'string' ? customer : customer?.id || 'N/A',
         reason: dispute.reason,
         status: dispute.status,
-        created: new Date(dispute.created * 1000).toISOString().split('T')[0],
-        charge_id: dispute.charge.id,
-        customer_email: dispute.charge.billing_details?.email || 'N/A',
-        customer_name: dispute.charge.billing_details?.name || 'N/A',
-        payment_method: dispute.charge.payment_method_details?.card?.brand || 'N/A',
+        win_likelihood: dispute.balance_transactions?.[0]?.fee_details?.find(fee => fee.type === 'stripe_fee')?.amount ? 'N/A' : 'N/A', // This needs to be fetched separately
+        payment_method_type: charge?.payment_method_details?.type || 'N/A',
         risk_score: riskAnalysis.score,
         risk_level: RiskScorer.getRiskLevel(riskAnalysis.score),
         risk_meter: RiskScorer.getRiskMeter(riskAnalysis.score),
@@ -211,16 +224,17 @@ async function generateCSV(disputes, fileName) {
     const csvWriter = csv({
       path: fileName,
       header: [
-        { id: 'id', title: 'Dispute ID' },
-        { id: 'amount', title: 'Amount' },
-        { id: 'currency', title: 'Currency' },
-        { id: 'reason', title: 'Reason' },
-        { id: 'status', title: 'Status' },
-        { id: 'created', title: 'Created Date' },
+        { id: 'id', title: 'id' },
+        { id: 'dispute_created_utc', title: 'Dispute Created (UTC)' },
+        { id: 'dispute_amount', title: 'Dispute Amount' },
+        { id: 'dispute_currency', title: 'Dispute Currency' },
         { id: 'charge_id', title: 'Charge ID' },
         { id: 'customer_email', title: 'Customer Email' },
-        { id: 'customer_name', title: 'Customer Name' },
-        { id: 'payment_method', title: 'Payment Method' },
+        { id: 'customer_id', title: 'Customer ID' },
+        { id: 'reason', title: 'Reason' },
+        { id: 'status', title: 'Status' },
+        { id: 'win_likelihood', title: 'Win Likelihood' },
+        { id: 'payment_method_type', title: 'Payment Method Type' },
         { id: 'risk_score', title: 'Risk Score' },
         { id: 'risk_level', title: 'Risk Level' },
         { id: 'risk_meter', title: 'Risk Meter' },
@@ -371,7 +385,7 @@ cron.schedule(config.schedule, runWeeklyReport, {
 });
 
 // For testing purposes - uncomment to run immediately
-runWeeklyReport();
+// runWeeklyReport();
 
 console.log('Stripe Disputes Automation started successfully!');
 console.log('Next run will be according to schedule:', config.schedule);
