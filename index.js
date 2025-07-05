@@ -344,7 +344,7 @@ async function uploadToAsana(fileName, startDate, endDate) {
   }
 }
 
-async function sendEmailNotification(fileName, startDate, endDate) {
+async function sendEmailNotification(fileName, startDate, endDate, accountName = 'Unknown Account') {
   try {
     const transporter = nodemailer.createTransport({
       host: config.email.host,
@@ -359,8 +359,11 @@ async function sendEmailNotification(fileName, startDate, endDate) {
     const mailOptions = {
       from: config.email.from,
       to: config.email.to,
-      subject: 'Weekly Stripe Disputes Report',
-      text: `Против Вас открыты следующие диспуты за период "${formatDate(startDate)} – ${formatDate(endDate)}"`,
+      subject: `Weekly Disputes Report for ${accountName}`,
+      text: `Против Вас открыты следующие диспуты за период "${formatDate(startDate)} – ${formatDate(endDate)}"
+
+Пришлите, пожалуйста, материалы для оспаривания.
+Спасибо.`,
       attachments: [
         {
           filename: path.basename(fileName),
@@ -384,6 +387,18 @@ async function runWeeklyReport() {
   
   console.log('='.repeat(50));
   console.log(`Starting weekly disputes report: ${formatDate(startDate)} to ${formatDate(endDate)}`);
+  
+  let accountName = 'Unknown Account';
+  try {
+    // Get Stripe account information
+    const account = await stripe.accounts.retrieve();
+    accountName = account.display_name || account.business_profile?.name || account.email || 'Unknown Account';
+    console.log(`Stripe Account: ${accountName}`);
+    console.log(`Account ID: ${account.id}`);
+  } catch (error) {
+    console.log('Could not retrieve Stripe account info:', error.message);
+  }
+  
   console.log('='.repeat(50));
 
   try {
@@ -401,8 +416,8 @@ async function runWeeklyReport() {
     // 3. Upload to Asana
     await uploadToAsana(fileName, startDate, endDate);
 
-    // 4. Send email notification
-    await sendEmailNotification(fileName, startDate, endDate);
+    // 4. Send email notification with account name
+    await sendEmailNotification(fileName, startDate, endDate, accountName);
 
     // 5. Clean up - remove local CSV file
     await fs.unlink(fileName);
@@ -428,7 +443,7 @@ cron.schedule(config.schedule, runWeeklyReport, {
 });
 
 // For testing purposes - uncomment to run immediately
-runWeeklyReport();
+// runWeeklyReport();
 
 console.log('Stripe Disputes Automation started successfully!');
 console.log('Next run will be according to schedule:', config.schedule);
