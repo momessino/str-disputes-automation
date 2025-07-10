@@ -363,9 +363,12 @@ async function sendEmailNotification(fileName, startDate, endDate) {
       to: config.email.to,
       replyTo: config.email.replyTo,
       subject: `Weekly Disputes Report for ${config.stripe.accountName}`,
-      text: `Против Вас открыты следующие диспуты за период "${formatDate(startDate)} – ${formatDate(endDate)}"
+      text: `Добрый день,
 
-Пришлите, пожалуйста, материалы для оспаривания.
+Против Вас открыты следующие диспуты за период "${formatDate(startDate)} – ${formatDate(endDate)}". См. вложенный файл.
+
+Пришлите, пожалуйста, материалы для оспаривания в ответ на данное письмо.
+
 Спасибо.`,
       attachments: [
         {
@@ -436,7 +439,7 @@ cron.schedule(config.schedule, runWeeklyReport, {
 });
 
 // For testing purposes - uncomment to run immediately
-runWeeklyReport();
+// runWeeklyReport();
 
 console.log('Stripe Disputes Automation started successfully!');
 console.log('Next run will be according to schedule:', config.schedule);
