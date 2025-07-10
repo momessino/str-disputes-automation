@@ -194,7 +194,7 @@ function formatDate(date) {
 }
 
 function generateFileName(startDate, endDate) {
-  return `${formatDate(endDate)} - ${formatDate(startDate)} disputes.csv`;
+  return `${formatDate(endDate)} - ${formatDate(startDate)} disputes for ${config.stripe.accountName}.csv`;
 }
 
 // Main functions
@@ -299,7 +299,7 @@ async function uploadToAsana(fileName, startDate, endDate) {
   try {
     const taskData = {
       data: {
-        name: `Weekly Stripe Disputes Report - ${formatDate(startDate)} to ${formatDate(endDate)}`,
+        name: `Disputes Report for ${config.stripe.accountName}, ${formatDate(startDate)} – ${formatDate(endDate)}`,
         notes: `Disputes report for the period ${formatDate(startDate)} – ${formatDate(endDate)}`,
         projects: [config.asana.projectId],
         due_on: formatDate(new Date()), // Due date is creation date
