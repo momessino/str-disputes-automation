@@ -24,6 +24,7 @@ const config = {
     pass: process.env.SMTP_PASS,
     from: process.env.EMAIL_FROM,
     to: process.env.EMAIL_TO,
+    replyTo: process.env.EMAIL_REPLY_TO,
   },
   schedule: process.env.CRON_SCHEDULE || '0 10 * * 1', // Default: Monday at 10:00 CET
 };
@@ -360,6 +361,7 @@ async function sendEmailNotification(fileName, startDate, endDate) {
     const mailOptions = {
       from: config.email.from,
       to: config.email.to,
+      replyTo: config.email.replyTo,
       subject: `Weekly Disputes Report for ${config.stripe.accountName}`,
       text: `Против Вас открыты следующие диспуты за период "${formatDate(startDate)} – ${formatDate(endDate)}"
 
@@ -375,6 +377,7 @@ async function sendEmailNotification(fileName, startDate, endDate) {
 
     await transporter.sendMail(mailOptions);
     console.log('Email notification sent successfully');
+    console.log(`Reply-To address: ${config.email.replyTo || 'Not configured'}`);
   } catch (error) {
     console.error('Error sending email:', error);
     throw error;
