@@ -25,6 +25,13 @@ const config = {
     from: process.env.EMAIL_FROM,
     to: process.env.EMAIL_TO,
     replyTo: process.env.EMAIL_REPLY_TO,
+    bodyTemplate: process.env.EMAIL_BODY_TEMPLATE || `Добрый день,
+
+Против Вас открыты следующие диспуты за период "{START_DATE} – {END_DATE}". См. вложенный файл.
+
+Пришлите, пожалуйста, материалы для оспаривания в ответ на данное письмо.
+
+Спасибо.`,
   },
   schedule: process.env.CRON_SCHEDULE || '0 10 * * 1', // Default: Monday at 10:00 CET
 };
@@ -358,18 +365,18 @@ async function sendEmailNotification(fileName, startDate, endDate) {
       },
     });
 
+    // Process email body template with date substitution
+    const emailBody = config.email.bodyTemplate
+      .replace(/{START_DATE}/g, formatDate(startDate))
+      .replace(/{END_DATE}/g, formatDate(endDate))
+      .replace(/\\n/g, '\n'); // Handle escaped newlines from environment variables
+
     const mailOptions = {
       from: config.email.from,
       to: config.email.to,
       replyTo: config.email.replyTo,
       subject: `Weekly Disputes Report for ${config.stripe.accountName}`,
-      text: `Добрый день,
-
-Против Вас открыты следующие диспуты за период "${formatDate(startDate)} – ${formatDate(endDate)}". См. вложенный файл.
-
-Пришлите, пожалуйста, материалы для оспаривания в ответ на данное письмо.
-
-Спасибо.`,
+      text: emailBody,
       attachments: [
         {
           filename: path.basename(fileName),
