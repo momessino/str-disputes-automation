@@ -15,6 +15,7 @@ const config = {
   asana: {
     accessToken: process.env.ASANA_ACCESS_TOKEN,
     projectId: process.env.ASANA_PROJECT_ID,
+    assigneeId: process.env.ASANA_ASSIGNEE_ID, // Optional - if not set, task won't be assigned
   },
   email: {
     host: process.env.SMTP_HOST,
@@ -314,6 +315,12 @@ async function uploadToAsana(fileName, startDate, endDate) {
       }
     };
 
+    // Add assignee if specified
+    if (config.asana.assigneeId) {
+      taskData.data.assignee = config.asana.assigneeId;
+      console.log(`Assigning task to user: ${config.asana.assigneeId}`);
+    }
+
     // Create task
     const taskResponse = await axios.post(
       'https://app.asana.com/api/1.0/tasks',
@@ -328,6 +335,13 @@ async function uploadToAsana(fileName, startDate, endDate) {
 
     const taskId = taskResponse.data.data.gid;
     console.log(`Created Asana task: ${taskId}`);
+    
+    // Log assignment status
+    if (config.asana.assigneeId) {
+      console.log(`Task successfully assigned to user: ${config.asana.assigneeId}`);
+    } else {
+      console.log('Task created without assignee (ASANA_ASSIGNEE_ID not configured)');
+    }
 
     // Upload CSV as attachment
     const fileBuffer = await fs.readFile(fileName);
@@ -349,6 +363,9 @@ async function uploadToAsana(fileName, startDate, endDate) {
     return taskId;
   } catch (error) {
     console.error('Error uploading to Asana:', error);
+    if (error.response?.data) {
+      console.error('Asana API error details:', error.response.data);
+    }
     throw error;
   }
 }
