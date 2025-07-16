@@ -184,16 +184,21 @@ class RiskScorer {
 // Utility functions
 function getWeekDateRange() {
   const now = new Date();
-  const dayOfWeek = now.getDay();
+  
+  // Work with UTC dates to ensure consistency regardless of server timezone
+  const nowUTC = new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const dayOfWeek = nowUTC.getUTCDay(); // 0 = Sunday, 1 = Monday, etc.
   const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   
-  const endDate = new Date(now);
-  endDate.setDate(now.getDate() - daysToMonday);
-  endDate.setHours(23, 59, 59, 999);
+  // Calculate end date (previous Sunday at 23:59:59.999 UTC)
+  const endDate = new Date(nowUTC);
+  endDate.setUTCDate(nowUTC.getUTCDate() - daysToMonday);
+  endDate.setUTCHours(23, 59, 59, 999);
   
+  // Calculate start date (Monday at 00:00:00.000 UTC, 6 days before end date)
   const startDate = new Date(endDate);
-  startDate.setDate(endDate.getDate() - 6);
-  startDate.setHours(0, 0, 0, 0);
+  startDate.setUTCDate(endDate.getUTCDate() - 6);
+  startDate.setUTCHours(0, 0, 0, 0);
   
   return { startDate, endDate };
 }
